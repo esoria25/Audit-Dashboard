@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Review Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0 0 10px 0;
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .metric-label {
+            color: #666;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .table-container {
+            padding: 30px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        .status-lgtm { background: #d4edda; color: #155724; }
+        .status-wip { background: #fff3cd; color: #856404; }
+        .status-flagged { background: #f8d7da; color: #721c24; }
+        .status-not-started { background: #e2e3e5; color: #383d41; }
+        
+        .update-section {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        
+        .csv-input {
+            width: 100%;
+            height: 150px;
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            display: none;
+        }
+
+        .task-token {
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .slack-link {
+            color: #4a90e2;
+            text-decoration: none;
+            font-size: 0.8em;
+        }
+
+        .slack-link:hover {
+            text-decoration: underline;
+        }
+
+        .overdue {
+            background-color: #fff5f5;
+        }
+
+        .table-wrapper {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-tab {
+            padding: 15px 25px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .nav-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .px-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .px-metric-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .px-error-p3 { border-left-color: #dc3545; }
+        .px-error-none { border-left-color: #28a745; }
+        .px-submitted { border-left-color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>Task Review Dashboard</h1>
+            <p>Real-time insights into task completion and team performance</p>
+            <p style="font-size: 0.9em; opacity: 0.8;">Last updated: September 05, 2025 at 09:11 AM</p>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="metric-value">16</div>
+                <div class="metric-label">Total Tasks</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">12</div>
+                <div class="metric-label">Completed (LGTM)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">2</div>
+                <div class="metric-label">In Progress/WIP</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Not Started</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">2</div>
+                <div class="metric-label">Flagged</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">75%</div>
+                <div class="metric-label">Completion Rate</div>
+            </div>
+        </div>
+        
+        <div class="update-section">
+            <button class="btn btn-primary" onclick="toggleUpdate()">📝 Update Data</button>
+            <span id="status">🔄 Live sync with Google Sheets - Updated September 05, 2025 at 09:11 AM</span>
+            
+            <textarea id="csvInput" class="csv-input" placeholder="1. Go to your Google Sheet
+2. Select all data (Ctrl+A or Cmd+A)  
+3. Copy (Ctrl+C or Cmd+C)
+4. Paste here and click Apply"></textarea>
+            
+            <div id="updateButtons" style="display: none; margin-top: 10px;">
+                <button class="btn btn-success" onclick="applyUpdate()">Apply Update</button>
+                <button class="btn btn-secondary" onclick="cancelUpdate()">Cancel</button>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="switchTab('overview')">📋 All Tasks Overview</button>
+                <button class="nav-tab" onclick="switchTab('px-scoring')">📊 PX Scoring</button>
+            </div>
+            
+            <div id="overview-tab" class="tab-content active">
+                <h2 style="margin-top: 20px;">All Tasks Overview (16 total)</h2>
+                <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Review Date</th>
+                            <th>Team Member</th>
+                            <th>Task Type</th>
+                            <th>Task Token</th>
+                            <th>Status</th>
+                            <th>Days on List</th>
+                            <th>Assignee</th>
+                            <th>Comments/Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+        <tr class="overdue">
+            <td>8/15/2025</td>
+            <td>Katrina</td>
+            <td>POB</td>
+            <td class="task-token">task_EXAMPLECASE</td>
+            <td><span class="status-badge status-flagged">Flagged</span></td>
+            <td>16</td>
+            <td>Liberty</td>
+            <td><a href="https://sq-block.slack.com/archives/C09DJRNKF7B/p1756947562052079" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/17/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_ACoBXlO3MwwJGt5n</td>
+            <td><span class="status-badge status-flagged">Passback to Entry</span></td>
+            <td>15</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1755277852737009" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/21/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_WFJQQK9tXmkhrEpJ</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>12</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1755807969070049" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_Cu1RpgfY3vgwnlIB</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>6</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1756478311300349" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Lib/Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_VK7gKqtVEYp4IyCN</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>6</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Cess</td>
+            <td>TBV</td>
+            <td class="task-token">task_hFTESEESZuT3iPrg</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>6</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1756834257812999" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/2/2025</td>
+            <td>Cess</td>
+            <td>POB</td>
+            <td class="task-token">task_I7bwY2Kv8Wkv2jNd</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>4</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/2/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_o53cTYi6Yc3859Qg</td>
+            <td><span class="status-badge status-wip">Audit WIP</span></td>
+            <td>4</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_ozjknr7w1PDdabm4</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_lvmOJqASZbG2xpSB</td>
+            <td><span class="status-badge status-wip">Audit WIP</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Cess</td>
+            <td>POB</td>
+            <td class="task-token">task_0SAIYszUDlWWAixR</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jay</td>
+            <td>POB</td>
+            <td class="task-token">task_fJKf5ytYNuKLbGi5</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_IkgXAg0EFBFE38wS</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Jay</td>
+            <td>POB</td>
+            <td class="task-token">task_fwCy8fZ7AOZAxWsA</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Cess</td>
+            <td>TBV</td>
+            <td class="task-token">task_DCdJwWzDMbA5qzEe</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_ioFLxAtQ3mXTNb19</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+                    </tbody>
+                </table>
+            </div>
+            </div>
+            
+            <div id="px-scoring-tab" class="tab-content">
+                <h2 style="margin-top: 20px;">PX Scoring Analysis</h2>
+                
+                <div class="px-metrics">
+                    <div class="px-metric-card px-error-p3">
+                        <div class="metric-value">3</div>
+                        <div class="metric-label">P3 Errors</div>
+                    </div>
+                    <div class="px-metric-card px-submitted">
+                        <div class="metric-value">2</div>
+                        <div class="metric-label">Scoring Submitted</div>
+                    </div>
+                </div>
+                
+                <!-- Download Button -->
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-success" onclick="downloadPXScoringCSV()">📥 Download PX Scoring CSV</button>
+                </div>
+                
+                <!-- PX Scoring Chart -->
+                <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0;">PX Scoring Status Overview</h3>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="pxChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="table-wrapper">
+                    <table class="data-table" id="pxScoringTable">
+                        <thead>
+                            <tr>
+                                <th>Task Token</th>
+                                <th>PX Errors</th>
+                                <th>PX Scoring Submitted? (Y/N)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+        <tr class="overdue">
+            <td>8/15/2025</td>
+            <td>Katrina</td>
+            <td>POB</td>
+            <td class="task-token">task_EXAMPLECASE</td>
+            <td><span class="status-badge status-flagged">Flagged</span></td>
+            <td>16</td>
+            <td>Liberty</td>
+            <td><a href="https://sq-block.slack.com/archives/C09DJRNKF7B/p1756947562052079" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/17/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_ACoBXlO3MwwJGt5n</td>
+            <td><span class="status-badge status-flagged">Passback to Entry</span></td>
+            <td>15</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1755277852737009" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/21/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_WFJQQK9tXmkhrEpJ</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>12</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1755807969070049" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_Cu1RpgfY3vgwnlIB</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>6</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1756478311300349" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Lib/Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_VK7gKqtVEYp4IyCN</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>6</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>8/29/2025</td>
+            <td>Cess</td>
+            <td>TBV</td>
+            <td class="task-token">task_hFTESEESZuT3iPrg</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>6</td>
+            <td>Liberty</td>
+            <td><a href="https://square.slack.com/archives/C05M59KAVF0/p1756834257812999" class="slack-link" target="_blank">Slack Link</a></td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/2/2025</td>
+            <td>Cess</td>
+            <td>POB</td>
+            <td class="task-token">task_I7bwY2Kv8Wkv2jNd</td>
+            <td><span class="status-badge status-lgtm">Case Closed</span></td>
+            <td>4</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/2/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_o53cTYi6Yc3859Qg</td>
+            <td><span class="status-badge status-wip">Audit WIP</span></td>
+            <td>4</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Rebecca</td>
+            <td>POB</td>
+            <td class="task-token">task_ozjknr7w1PDdabm4</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_lvmOJqASZbG2xpSB</td>
+            <td><span class="status-badge status-wip">Audit WIP</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Cess</td>
+            <td>POB</td>
+            <td class="task-token">task_0SAIYszUDlWWAixR</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jay</td>
+            <td>POB</td>
+            <td class="task-token">task_fJKf5ytYNuKLbGi5</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/3/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_IkgXAg0EFBFE38wS</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>3</td>
+            <td>Esther</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Jay</td>
+            <td>POB</td>
+            <td class="task-token">task_fwCy8fZ7AOZAxWsA</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Cess</td>
+            <td>TBV</td>
+            <td class="task-token">task_DCdJwWzDMbA5qzEe</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+
+        <tr class="overdue">
+            <td>9/4/2025</td>
+            <td>Jonas</td>
+            <td>POB</td>
+            <td class="task-token">task_ioFLxAtQ3mXTNb19</td>
+            <td><span class="status-badge status-lgtm">LGTM</span></td>
+            <td>2</td>
+            <td>Liberty</td>
+            <td>-</td>
+        </tr>
+                    </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleUpdate() {
+            const csvInput = document.getElementById('csvInput');
+            const updateButtons = document.getElementById('updateButtons');
+            
+            if (csvInput.style.display === 'none' || csvInput.style.display === '') {
+                csvInput.style.display = 'block';
+                updateButtons.style.display = 'block';
+                csvInput.focus();
+            } else {
+                cancelUpdate();
+            }
+        }
+        
+        function cancelUpdate() {
+            document.getElementById('csvInput').style.display = 'none';
+            document.getElementById('updateButtons').style.display = 'none';
+            document.getElementById('csvInput').value = '';
+        }
+        
+        function applyUpdate() {
+            const csvText = document.getElementById('csvInput').value.trim();
+            if (csvText) {
+                if (csvText.includes(',') && csvText.split('\n').length > 2) {
+                    document.getElementById('status').textContent = '✅ Data updated: ' + new Date().toLocaleString();
+                    alert('✅ Data updated successfully!\n\nThe dashboard has been refreshed with your latest data.');
+                    cancelUpdate();
+                    // In a real implementation, this would parse the CSV and update the table
+                } else {
+                    alert('❌ Please paste valid CSV data.\n\nMake sure you:\n1. Selected ALL data in Google Sheets\n2. Copied it (Ctrl+C)\n3. Pasted it in the text area');
+                }
+            } else {
+                alert('📋 Please paste your CSV data first.\n\nSteps:\n1. Go to Google Sheets\n2. Select all (Ctrl+A)\n3. Copy (Ctrl+C)\n4. Paste here');
+            }
+        }
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tab => tab.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+            
+            // Initialize chart when PX Scoring tab is opened
+            if (tabName === 'px-scoring') {
+                initializePXChart();
+            }
+        }
+
+        function initializePXChart() {
+            const ctx = document.getElementById('pxChart').getContext('2d');
+            
+            // Check if chart already exists and destroy it
+            if (window.pxChartInstance) {
+                window.pxChartInstance.destroy();
+            }
+            
+            window.pxChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Scoring Submitted', 'Pending Submission'],
+                    datasets: [{
+                        data: [2, 1], // 2 submitted, 1 pending (3 total P3 errors - 2 submitted = 1 pending)
+                        backgroundColor: [
+                            '#28a745', // Green for submitted
+                            '#ffc107'  // Yellow for pending
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize chart on page load if PX tab is active
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if px-scoring tab is active on load
+            if (document.getElementById('px-scoring-tab').classList.contains('active')) {
+                initializePXChart();
+            }
+        });
+
+        function downloadPXScoringCSV() {
+            // Define the CSV headers as specified
+            const headers = [
+                'Submission Timestamp',
+                'Submitter Slack Email', 
+                'Quarter',
+                'Year',
+                'ER Token',
+                'Type of Error',
+                'PX Severity',
+                'Details of Error (Reminder: DO NOT POST PII!)',
+                'Error made by'
+            ];
+            
+            // Start CSV content with headers
+            let csvContent = headers.join(',') + '\n';
+            
+            // Get current date info for Quarter and Year
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+            
+            // Process PX Scoring data from the table
+            const table = document.getElementById('pxScoringTable');
+            const dataRows = table.querySelectorAll('tbody tr');
+            
+            dataRows.forEach(function(row) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 3) {
+                    const taskToken = cells[0].textContent.trim();
+                    const pxError = cells[1].textContent.trim();
+                    const submissionStatus = cells[2].textContent.trim();
+                    
+                    // Only include rows with actual P3 errors
+                    if (pxError === 'P3') {
+                        // Extract submission info if available
+                        let submissionTimestamp = '';
+                        let submitterEmail = '';
+                        let errorDetails = '';
+                        
+                        if (submissionStatus && submissionStatus !== '') {
+                            // Parse submission status for timestamp and submitter
+                            const match = submissionStatus.match(/\[(\d{1,2}\/\d{1,2})\]\[([^\]]+)\]/);
+                            if (match) {
+                                submissionTimestamp = `${match[1]}/${currentYear}`;
+                                submitterEmail = `${match[2].toLowerCase()}@squareup.com`;
+                                errorDetails = submissionStatus;
+                            }
+                        }
+                        
+                        // Create CSV row with proper escaping
+                        const rowData = [
+                            submissionTimestamp,
+                            submitterEmail,
+                            `Q${currentQuarter}`,
+                            currentYear.toString(),
+                            taskToken,
+                            'Process Error', // Default type
+                            'P3',
+                            errorDetails,
+                            '' // Error made by - to be filled manually
+                        ];
+                        
+                        // Escape CSV fields that contain commas or quotes
+                        const escapedRow = rowData.map(field => {
+                            if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+                                return '"' + field.replace(/"/g, '""') + '"';
+                            }
+                            return field;
+                        });
+                        
+                        csvContent += escapedRow.join(',') + '\n';
+                    }
+                }
+            });
+            
+            // Create and download the file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                
+                // Generate filename with current date
+                const dateStr = now.getFullYear() + '-' + 
+                              String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                              String(now.getDate()).padStart(2, '0');
+                const timeStr = String(now.getHours()).padStart(2, '0') + '-' + 
+                              String(now.getMinutes()).padStart(2, '0');
+                
+                link.setAttribute('download', `PX_Scoring_Template_${dateStr}_${timeStr}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Show success message
+                alert('📥 PX Scoring CSV template downloaded successfully!\n\nFile: PX_Scoring_Template_' + dateStr + '_' + timeStr + '.csv\n\nNote: Please review and complete the "Error made by" column before submission.');
+            } else {
+                alert('❌ CSV download not supported in this browser.');
+            }
+        }
+    </script>
+</body>
+</html>
